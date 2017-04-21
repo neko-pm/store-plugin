@@ -15,6 +15,8 @@ enum PlayerSkin
 {
 	String:szModel[PLATFORM_MAX_PATH],
 	String:szArms[PLATFORM_MAX_PATH],
+	String:szSteamID[PLATFORM_MAX_PATH],
+	iBody,
 	iSkin,
 	bool:bTemporary,
 	iTeam,
@@ -141,6 +143,11 @@ public PlayerSkins_Config(&Handle:kv, itemid)
 	g_ePlayerSkins[g_iPlayerSkins][iTeam] = KvGetNum(kv, "team");
 	g_ePlayerSkins[g_iPlayerSkins][bTemporary] = (KvGetNum(kv, "temporary")?true:false);
 	
+	//dirty temp fix
+	KvGetString(kv, "steamid", g_ePlayerSkins[g_iPlayerSkins][szSteamID], PLATFORM_MAX_PATH, "");
+	//bodygroup support
+	g_ePlayerSkins[g_iPlayerSkins][iBody] = KvGetNum(kv, "model_body");
+
 	if(FileExists(g_ePlayerSkins[g_iPlayerSkins][szModel], true))
 	{
 		++g_iPlayerSkins;
@@ -155,8 +162,7 @@ public PlayerSkins_Equip(client, id)
 	new m_iData = Store_GetDataIndex(id);
 	if(g_eCvars[g_cvarSkinChangeInstant][aCache] && IsPlayerAlive(client) && GetClientTeam(client)==g_ePlayerSkins[m_iData][iTeam])
 	{
-		
-		Store_SetClientModel(client, g_ePlayerSkins[m_iData][szModel], g_ePlayerSkins[m_iData][iSkin]);
+		Store_SetClientModel(client, g_ePlayerSkins[m_iData][szModel], g_ePlayerSkins[m_iData][iSkin], g_ePlayerSkins[m_iData][iBody], g_ePlayerSkins[m_iData][szSteamID]);
 	}
 	else
 	{
@@ -214,7 +220,7 @@ public Action:PlayerSkins_PlayerSpawnPost(Handle:timer, any:userid)
 			m_iData = g_iTempSkins[client];
 		else
 			m_iData = Store_GetDataIndex(m_iEquipped);
-		Store_SetClientModel(client, g_ePlayerSkins[m_iData][szModel], g_ePlayerSkins[m_iData][iSkin], g_ePlayerSkins[m_iData][szArms]);
+		Store_SetClientModel(client, g_ePlayerSkins[m_iData][szModel], g_ePlayerSkins[m_iData][iSkin], g_ePlayerSkins[m_iData][iBody], g_ePlayerSkins[m_iData][szSteamID], g_ePlayerSkins[m_iData][szArms]);
 	}
 	else if(g_eCvars[g_cvarSkinForceChange][aCache])
 	{
@@ -227,7 +233,7 @@ public Action:PlayerSkins_PlayerSpawnPost(Handle:timer, any:userid)
 	return Plugin_Stop;
 }
 
-Store_SetClientModel(client, const String:model[], const skin=0, const String:arms[]="")
+Store_SetClientModel(client, const String:model[], const skin=0, const body=0, const String:sziDataSteamID[]="", const String:arms[]="")
 {
 	if(g_bZombieMode)
 		if(ZR_IsClientZombie(client))
@@ -238,12 +244,23 @@ Store_SetClientModel(client, const String:model[], const skin=0, const String:ar
 		SetVariantString(model);
 		AcceptEntityInput(client, "SetCustomModel");
 	}
+	
+	new String:m_szSteamID[32];
+	GetClientAuthId(client, AuthId_Steam2, m_szSteamID, sizeof(m_szSteamID), true);
+	if(!StrEqual(sziDataSteamID, "", false) && !StrEqual(m_szSteamID, sziDataSteamID, false))
+	{
+		PrintToChat(client, " \x02This isn't your model!");
+		return;
+	}	
+	
 	else
 	{
 		SetEntityModel(client, model);
 	}
 
 	SetEntProp(client, Prop_Send, "m_nSkin", skin);
+	
+	SetEntProp(client, Prop_Send, "m_nBody", body);
 
 	if(GAME_CSGO & arms[0]!=0)
 	{
